@@ -1,0 +1,190 @@
+---
+title: "710 A9"
+author: "Xiaobin Huang"
+date: "2024-11-30"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1.We started working with the Cook County data set because it was one of the easier government data
+sets that I have found. Typically they cannot be so easily imported into R. However, it was not easy to work with. In the context of your work with the Cook County data set discuss the importance of data
+cleaning, examining the data, and understanding the structure of the data before doing data analysis.
+
+Data Cleaning ensures the analysis is based on accurate, reliable data. Data cleaning is the process of identifying and correcting inaccuracies, inconsistencies, and errors within the dataset. This step is essential because real-world data is often messy, containing missing values, outliers, duplicates, or incorrectly formatted data. If these issues are not addressed, the analysis could lead to faulty conclusions. For instance, a column with missing values in a regression analysis might result in a biased estimate of the relationship between variables. In the Cook County dataset, inconsistencies in property types or missing tax data could result in misleading statistical summaries or predictive models.
+
+Examining the Data:
+Examining the Data reveals potential issues and helps in selecting the right analytical techniques. Exploring the dataset through summary statistics, visualizations, and basic descriptive analysis helps identify patterns, trends, and potential issues that may not be immediately obvious. Examining the data also aids in selecting the appropriate analysis techniques. Exploratory Data Analysis (EDA) helps uncover relationships between variables, such as trends in property values by neighborhood or tax rates. EDA could reveal that certain regions have systematically missing data, which may be crucial for analysis integrity.
+
+Understanding the Structure:
+Understanding the Structure ensures that the data is appropriately used and analyzed according to its format and relationships.Understanding the data’s structure is critical for knowing how to manipulate and analyze it effectively. This includes knowing the relationships between variables (e.g., independent vs. dependent variables), and understanding how data is organized. In this case, understanding how variables interact (e.g., tax rate vs. property value) helps in modeling and interpretation. Misunderstanding the distinction between assessed value and market value could lead to flawed interpretations in property valuation studies.
+ 
+
+2.Chapter 11 Problem 26.
+Metabolism and Lifespan of Mammals. Use the data from Exercise 8.26 to describe the distribution of mammal lifespan as a function of metabolism rate, after accounting for the effect of body mass. One theory holds that for a given body size, animals that expend less energy per day (lower metabolic rate) will tend to live longer.
+Fit a Regression Model: We can fit a multiple linear regression model where lifespan is the dependent variable, and metabolism rate and body mass are independent variables.
+Lifespan=β0+β1*MetabolismRate+β2*BodyMass+ϵ
+```{r}
+library(Sleuth3)
+plot(ex0826$Metab, ex0826$Life)
+plot(ex0826$Mass,ex0826$Life)
+
+#It makes no sense so we did the log transformation here
+ex0826$log_Life <- log(ex0826$Life)
+ex0826$log_Metab <- log(ex0826$Metab)
+ex0826$log_Mass <- log(ex0826$Mass)
+plot(ex0826$log_Metab,ex0826$log_Life)
+plot(ex0826$log_Mass,ex0826$log_Life)
+
+# Fit the linear model using the log-transformed data
+log_model <- lm(log_Life ~ log_Metab + log_Mass, ex0826)
+
+# Display the model summary
+summary(log_model)
+
+#Metab Coefficient (-0.31): A 1% increase in metabolic rate is associated with a 0.31% decrease in lifespan, supporting the hypothesis that lower metabolism leads to longer life.
+#Mass Coefficient (0.53): A 1% increase in body mass is associated with a 0.53% increase in lifespan which indicates that larger mammals generally live longer.
+
+plot(log_model)
+#Residuals vs. Fitted Values Plot
+##This plot helps us check for constant variance. The spread of residuals are remaining roughly constant as the fitted values increase, with no clear pattern.
+#Normal Q-Q Plot 
+##This plot checks the residuals follow a normal distribution. The points lie approximately on a straight line, the residuals are normally distributed.
+#Scale-Location Plot
+##This plot showing the square root of standardized residuals versus the fitted values. The spread seems like even across all fitted values.
+#Residuals vs. Leverage Plot 
+##Not too many outliers impact on the model
+confint(log_model)
+#the entire log-Metab interval is below zero, it strongly supports the theory (negative relationship).
+new_data <- data.frame(log_Metab=log(3.71), log_Mass=log(0.53))
+
+# Make the prediction with a 95% prediction interval
+prediction <- predict(log_model, newdata = new_data, interval = "prediction", level = 0.95)
+
+# Print the prediction result
+print(prediction)
+
+# Back-transform to the original scale of Life
+exp(prediction)
+```
+The estimated coefficient for metabolic rate in the multiple regression model is -0.31, indicating that for a given body mass, an increase in metabolic rate is associated with a decrease in lifespan. This coefficient is negative, it proves that an increase in metabolic rate is associated with a shorter lifespan (supporting the theory).The p-value for this coefficient is 0.0003, which suggests that the relationship is statistically significant at the 5% level and may indicate a trend worth further investigation.
+
+The 95% prediction interval for lifespan, holding body mass, ranges from 7.14 years to 52.69 years, indicating a broad range of potential lifespans. The theory holds that for a given body size, animals that expend less energy per day (lower metabolic rate) will tend to live longer make sense. 
+
+
+
+3.Chapter 12 problem 21. (Focus on three issues: 1: Is region useful? 2: Is the monthly level data more useful than the total? 3: If monthly level data is useful do you think some months can be ignored?)
+
+```{r}
+library(Sleuth3)
+modelpred<-lm(Score ~ .,ex1221)
+summary(modelpred)
+
+# Model 1: Using each month separately
+model_months <- lm(Score ~ Sep + Oct + Nov + Dec + Jan + Feb + Mar,ex1221)
+summary(model_months)
+
+# Model 2: Using total rainfall
+TotalRainfall <- rowSums(ex1221[, c("Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar")])
+model_total <- lm(Score ~ TotalRainfall,ex1221)
+summary(model_total)
+
+# Compare AIC values for model fit
+AIC(model_months, model_total)
+
+sat_model <- lm(Score ~.-Total-Rating-Year,ex1221)
+inter_model <- lm(Score ~ 1, ex1221)
+aic_forward_model <- step(inter_model, direction="forward", trace=TRUE, scope=formula(sat_model))
+summary(aic_forward_model)
+#By using stepwise, the equation for predicting the quality score from the monthly rainfalls is Score ~ Dec + Oct + Region + Nov + Feb + Sep + Jan.
+upland<-subset(ex1221,Region=="upland")
+m1<- lm(Score~Sep+Oct+Nov+Dec+Jan+Feb+Mar,upland)
+summary(m1)
+plot(m1)
+predata <- data.frame(Sep = 0.45, Oct = 0.02, Nov = 0.80, Dec = 0.76, Jan = 0.17, Feb = 1.22, Mar = 0.37)
+predict_upland<- predict(m1,newdata=predata, interval="prediction")
+# It estimated that the score will be 0.077, which could be considered "Poor". Also the 95% prediction interval is between -1.54858 and 1.702658. Because there would not be score under zero so we can say that the prediction interval is between 0 and 1.702658.
+
+#Scope of inference: This analyse result could only used on there certain areas and a more objective response variable should be included, such as the radius of the bloom to describe the state of the flower. In addition, other predictive variables that may have an impact should be considered, such as temperature, soil, natural disasters, etc.
+```
+
+
+4.The above simulated data generates 50 predictors and one response. All of the data is random noise.
+There is no true relationship between any of the variables. Note, it is important you keep the line
+set.seed(10). Not keeping that line or changing it will result in everyone in class working on different data sets.
+(a) Using the t-test some of the coefficients appear significant, but the p-value for the F-test is larger than .05. Explain how that can be. A good discussion would discuss the importance of using an
+F-test if you have many variables that you are testing
+
+Individual t-tests may show significance due to random variability when testing many predictors. However, the F-test, which evaluates the model as a whole, accounts for multiple comparisons and reflects no real relationship, showing a large p-value. The apparent significance in t-tests arises from random chance in the absence of any true relationships. The F-test, with its global assessment, correctly identifies that the model as a whole does not explain the variability in the response variable. This highlights the importance of using the F-test, especially in situations involving many predictors, to avoid misleading conclusions from multiple testing.
+
+(b)Fit a model using only the variable with the smallest p-value. Now is the model significant?
+
+Fitting a model with only the variable with the smallest p-value might show significance due to overfitting. However, this is misleading since the data is random noise, emphasizing the risk of cherry-picking significant variables.
+
+```{r}
+set.seed(10)
+n <- 1000
+p <- 50
+y <- rnorm(n)
+x <- matrix(rnorm(n*p),ncol=p)
+df <- data.frame(y,x)
+# Fit models
+#(a)
+m1 <- lm(y ~ ., df)
+summary(m1)
+# The p-value for f-test is greater than 0.05, which indicates that we can not reject the null hypothesis that all coefficients for each predictor is zero. In brief, f-test greater than 0.05 meaning we do not have sufficient proof to say that there is a statistically significant difference or effect. T-test in contrast, assess the significance of individual predictors, for a large number of predictors you may find some that are significant purely by chance. This makes sense because we are randomly creating a set a value that follows normal distribution, so we would expect that there are 5% of value is out of the range, for 50 variables it could be two or three variable shows significant differnece.
+m2 <- step(m1, trace=FALSE)
+m3<-lm(y~X28,df)
+summary(m3)
+```
+(c)Why might it be problematic to fit a model with a large number of variables and then identify the
+significant results as true findings.
+
+Because the data are all random noise and there is no real underlying relationship between predictors and responses, so these results may not be trustworthy.
+
+(d)Statisticians working at hospitals doing genetic testing deal with a similar issue. They can have up to 1 million genetic markers that they wish to test to see if they are related to a specific disease. Workers at Hospital A will collect data from their patients and fit statistical models to identify a subset of markers of interest. Then another set of workers at Hospital B will be given this target subset of markers. They will collect independent data from their patients and then fit statistical models using only their patients to see if these markers still show a relationship with the disease of interest. Explain how this approach can minimize the errors seen in the previous question.
+
+It is not a good ideal to use the same data to both do automated model selection and hypothesis testing because the data are all random noise and it could cause overfitting. An alternative approach could be divide the data set into two subsets, one for training  and another for testing.
+
+
+5. For this problem use the wage data set that was used on the first take home exam.
+(a) Fit a model of log wages given education, years of experience and age. Explain how the F-test can
+be significant but the t-test for each variable by itself is not significant.
+```{r}
+#(a)
+wage_data <- read.csv("https://bssherwood.github.io/files/wage_data.csv")
+wage_data$logwage<- log(wage_data$wage,10)
+logwage<- log(wage_data$wage,10)
+m1<- lm(logwage~education+experience+age,wage_data)
+summary(m1)
+# The reason for this result may be due to the correlation between age and work experience. As mentioned in the class, every additional year of work experience will inevitably increase the age by one year, which is also the reason for this situation.
+#F-test (Overall Model Significance):The F-test in the summary will test if at least one of the predictors (education, experience, or age) explains the variation in log_wage.
+#A significant F-test (p-value < 0.05) indicates that the model as a whole explains the variance in log_wage.
+#t-tests (Individual Predictor Significance):
+#The t-tests for education, experience, and age test whether each coefficient is significantly different from zero.
+#A non-significant t-test (p-value > 0.05) for each variable suggests that individually, these predictors may not have a strong impact.
+```
+b) Pretend you have been transported to 1985. An HR firm has asked you to develop a model to
+generate reasonable starting offers. Develop such a model. Consider a 28 year old, non-union,
+married, Hispanic woman living in the south with 12 years of education, 10 years of experience
+working a sales position in manufacturing. What would be a reasonable starting offer? Also use
+the model to provide a low and high offer.
+```{r}
+#(b)
+sat_model <- lm(logwage ~ occupation+sector+union+education+experience+age+gender+marr+race+south,wage_data)
+inter_model <- lm(logwage ~ 1, wage_data)
+aic_forward_model <- step(inter_model, direction="forward", trace=FALSE, scope=formula(sat_model))
+predata<- data.frame(age=28, union="No", marr="Yes", race="Hispanic", south="Yes", gender="Female", experience=10, education=12,occupation="Sales", sector="Manufacturing")
+predict_result<-predict(aic_forward_model,newdata=predata, interval="prediction")
+10^predict_result
+#A reasonable starting offer could be 5.21 a low offer could be 2.2 and high offer could be 12.34.
+```
+
+
+
